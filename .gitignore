@@ -1,0 +1,8 @@
+main/libs/
+build/
+managed_components/
+sdkconfig.old
+*.b#*
+*.s#*
+*.swp
+.cache/

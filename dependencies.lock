@@ -1,0 +1,75 @@
+dependencies:
+  espressif/cmake_utilities:
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.5.3
+  espressif/esp-idf-cxx:
+    component_hash: 2fa63e4e725f0c2d3dd6d99da8a91d404b4b49667088b1be0f336eb9c13ff17f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.2-beta
+  espressif/esp_mqtt_cxx:
+    component_hash: 08c9cfd2aa1eb9b3f8064e0d7ba9c8a341dd86caa8f9ae7fc5b882e5b473c79f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    - name: espressif/esp-idf-cxx
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^1.0.0-beta
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.3.0
+  espressif/led_indicator:
+    component_hash: f1fbe20fba9313986c32b1b6b7a4ae4822103ab928b51e9bd77215470cb70d98
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.0'
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: espressif/led_strip
+      registry_url: https://components.espressif.com
+      require: public
+      version: 2.5.5
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.0
+  espressif/led_strip:
+    component_hash: 28c6509a727ef74925b372ed404772aeedf11cce10b78c3f69b3c66799095e2d
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 2.5.5
+  idf:
+    source:
+      type: idf
+    version: 5.5.1
+direct_dependencies:
+- espressif/esp-idf-cxx
+- espressif/esp_mqtt_cxx
+- espressif/led_indicator
+- idf
+manifest_hash: e87bb822a29378bb1195613a19e5d1a25dd82e2947368377ccf6507bf7ac4dfd
+target: esp32c3
+version: 2.0.0
