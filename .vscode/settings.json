@@ -92,5 +92,6 @@
     "stdfloat": "cpp",
     "typeindex": "cpp",
     "valarray": "cpp"
-  }
+  },
+  "editor.formatOnSave": true
 }

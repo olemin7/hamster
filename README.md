@@ -9,17 +9,17 @@ https://github.com/espressif/esp-iot-solution
 
 # esp32c3_supermini
     Pin     | ADC | func |
-GPIO_NUM_0  | A0  |      |photoresistor
-GPIO_NUM_1  | A1  |      |
+GPIO_NUM_0  | A0  |      | WAKE UP
+GPIO_NUM_1  | A1  |      | SENSOR
 GPIO_NUM_2  | A2  |      |
 GPIO_NUM_3  | A3  |      |
-GPIO_NUM_4  | A4  | SCK  | max7219 CLK
+GPIO_NUM_4  | A4  | SCK  | 
 3V3
 GND
 5V
 -------------------------------------
-GPIO_NUM_5  | A5  | MISO | max7219 CS
-GPIO_NUM_6  |     | MOSI | max7219 DIN
+GPIO_NUM_5  | A5  | MISO | 
+GPIO_NUM_6  |     | MOSI | 
 GPIO_NUM_7  |     | SS   | 
 GPIO_NUM_8  |     | SDA  | LED           
 GPIO_NUM_9  |     | SDL  | BOOT_BUTTON   

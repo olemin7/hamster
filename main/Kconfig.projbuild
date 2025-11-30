@@ -1,29 +1,7 @@
 menu "App Configuration"
-    rsource "libs/provision/provision.projbuild"
-    rsource "libs/mqtt_tools/mqtt.projbuild"                       
-    config SENSORS_COLLECTION_TIMEOUT
-        int
-        default 5
-        prompt "Sensors collection timeout(sec)"
+    #rsource "libs/provision/provision.projbuild"
+    #rsource "libs/mqtt_tools/mqtt.projbuild"                       
     
-    config POOL_INTERVAL_DEFAULT
-        int "POOL_INTERVAL_DEFAULT sec"
-        default 600
-        
-    config POOL_INTERVAL_RETRY
-        int "POOL_INTERVAL_RETRY sec"
-        default 60
-
-    menu "Board"
-        config I2C_MASTER_SCL_IO
-                int
-                default 9
-                prompt "I2C_MASTER_SCL_IO"
-        config I2C_MASTER_SDA_IO
-                int
-                default 8
-                prompt "I2C_MASTER_SDA_IO"
-    endmenu
 
     menu "Clock"
         config SNTP_TIME_SERVER
@@ -36,49 +14,14 @@ menu "App Configuration"
             default "EET-2EEST,M3.5.0/3,M10.5.0/4"
     endmenu
 
-    menu "Sensors"
-        config SENSORS_KA_PERIOD_S
-            int "SENSORS_KA_PERIOD_S"
-            default 600
-            help
-                sensor keep alive period sec, resend value if it unchanged
-        config LIGHTING_REFRESH
-            int "LIGHTING_REFRESH"
-            default 200
-            help
-                LIGHTING_REFRESH ms
-        config LIGHTING_THRESHOLD
-            int "LIGHTING_THRESHOLD"
-            default 10
-        config LIGHTING_MIN_RAW
-            int "LIGHTING_MIN_RAW"
-            default 10
-        config LIGHTING_MAX_RAW
-            int "LIGHTING_MAX_RAW"
-            default 4096
-    endmenu
-
-    menu "Display"
-        config DISPLAY_SEGMENTS
-            int "DISPLAY_SEGMENTS"
-            default 4
-
-        config DISPLAY_SEGMENT_ROTATION
-            int "DISPLAY_SEGMENT_ROTATION"
-            default 3
-            help
-                SEGMENT_ROTATION
-        config DISPLAY_SEGMENT_UPSIDEDOWN
-            int "DISPLAY_SEGMENT_UPSIDEDOWN"
+    menu "Buttons"
+        config WAKE_UP_BTN
+            int "WAKE_UP_BTN"
             default 0
-            help
-                SEGMENT_UPSIDEDOWN
-        config DISPLAY_MIRRORED
-            int "DISPLAY_MIRRORED"
-            default 0
-            help
-                DISPLAY_MIRRORED
 
+        config SENSOR_BTN
+            int "SENSOR_BTN"
+            default 1
     endmenu
 
 endmenu
