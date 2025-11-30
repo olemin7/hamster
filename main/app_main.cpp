@@ -1,6 +1,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include <cstring>
+#include <optional>
 #include "sdkconfig.h"
 #include <esp_log.h>
 #include <button.h>
@@ -25,7 +26,7 @@ double speed = 0;
 double speed_max = 0;
 uint16_t rotation_history[history_size] = {0};
 
-std::unique_ptr<std::chrono::steady_clock::time_point> last_click;
+std::optional<std::chrono::steady_clock::time_point> last_click;
 button_t wake_up_button;
 button_t sensor_button;
 SSD1306_t dev;
@@ -39,11 +40,11 @@ void show_history()
     const auto history_total = std::accumulate(rotation_history, rotation_history + history_size, 0);
     char buf[32];
     ESP_LOGI(TAG, "history_max=%u,history_total=%u", history_max, history_total);
-    snprintf(buf, sizeof(buf), "24h=%u/%u", history_max, history_total);
+    snprintf(buf, sizeof(buf), "24h=%0.1f/%0.1f", history_max * rotation_length, history_total * rotation_length);
     ssd1306_display_text(&dev, 2, buf, strlen(buf), false);
     if (history_max > 0)
     {
-        constexpr auto size_y = 32;
+        constexpr auto size_y = 37;
         constexpr auto size_x = history_size;
         uint8_t history[size_x * size_y / 8 + 1];
         memset(history, 0, sizeof(history));
@@ -75,9 +76,9 @@ void show_data()
 {
     char buf[32];
     const auto distance = rotation_count * rotation_length;
-    snprintf(buf, sizeof(buf), "rot=%u/%.1g", rotation_count, distance);
+    snprintf(buf, sizeof(buf), "rot=%u/%.1f", rotation_count, distance);
     ssd1306_display_text(&dev, 0, buf, strlen(buf), false);
-    snprintf(buf, sizeof(buf), "spd=%.3g/%.3g", speed, speed_max);
+    snprintf(buf, sizeof(buf), "spd=%.3f/%.3f", speed, speed_max);
     ssd1306_display_text(&dev, 1, buf, strlen(buf), false);
 
     show_history();
@@ -119,18 +120,18 @@ static void on_sensor_button(button_t *, button_state_t state)
         rotation_history[0]++;
         ESP_LOGI(TAG, "rotation_count=%d", rotation_count);
         auto now = std::chrono::steady_clock::now();
-        if (last_click)
+        if (last_click.has_value())
         {
-            const auto diff = now - *last_click;
+            const auto diff = now - last_click.value();
             const auto diff_ms = std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
-            ESP_LOGI(TAG, "diff=%d", diff_ms);
+            ESP_LOGI(TAG, "diff=%lld", diff_ms);
             speed = rotation_length * 60 * 60 / diff_ms; // km/hour
             if (speed > speed_max)
             {
                 speed_max = speed;
             }
         }
-        last_click = std::make_unique<std::chrono::steady_clock::time_point>(now);
+        last_click = now;
 
         if (f_show_data)
         {
