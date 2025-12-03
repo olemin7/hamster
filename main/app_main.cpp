@@ -15,16 +15,17 @@
 using namespace std::chrono_literals;
 
 static const char *TAG = "main";
-constexpr auto diameter = 160;
-constexpr auto rotation_length = std::numbers::pi * diameter / 1000;
+constexpr auto diameter_mm = 200;
+constexpr auto rotation_length_mm = std::numbers::pi * diameter_mm;
+constexpr auto step_per_rotation = 2;
 constexpr auto idle_duration = 60s;
 constexpr auto history_size = 128;
-constexpr auto history_step = std::chrono::duration_cast<std::chrono::milliseconds>(25h) / history_size;
-
-uint16_t rotation_count = 0;
+// constexpr auto history_step = std::chrono::duration_cast<std::chrono::milliseconds>(25h) / history_size;
+constexpr auto history_step = 3s;
+uint32_t rotation_total = 0;
+uint32_t rotation_history[history_size] = {0};
 double speed = 0;
 double speed_max = 0;
-uint16_t rotation_history[history_size] = {0};
 
 std::optional<std::chrono::steady_clock::time_point> last_click;
 button_t wake_up_button;
@@ -37,10 +38,11 @@ bool f_show_data = false;
 void show_history()
 {
     const auto history_max = *std::max_element(rotation_history, rotation_history + history_size);
-    const auto history_total = std::accumulate(rotation_history, rotation_history + history_size, 0);
+    const auto history_total = std::accumulate(rotation_history, rotation_history + history_size, uint32_t{0});
     char buf[32];
-    ESP_LOGI(TAG, "history_max=%u,history_total=%u", history_max, history_total);
-    snprintf(buf, sizeof(buf), "24h=%0.1f/%0.1f", history_max * rotation_length, history_total * rotation_length);
+    ESP_LOGI(TAG, "history_max=%f,history_total=%f", history_max, history_total);
+    snprintf(buf, sizeof(buf), "24h=%0.3f/%0.3f", static_cast<float>(rotation_length_mm * history_max) * step_per_rotation / 1000 / 1000,
+             static_cast<float>(rotation_length_mm * history_total) * step_per_rotation / 1000 / 1000);
     ssd1306_display_text(&dev, 2, buf, strlen(buf), false);
     if (history_max > 0)
     {
@@ -48,24 +50,32 @@ void show_history()
         constexpr auto size_x = history_size;
         uint8_t history[size_x * size_y / 8 + 1];
         memset(history, 0, sizeof(history));
-        auto put_pixel = [&history](uint8_t x, uint8_t y)
+        // auto put_pixel = [&history](uint8_t x, uint8_t y)
+        // {
+        //     const auto bit_pos = y * size_x + x;
+        //     const auto byte_pos = bit_pos / 8;
+        //     const auto bit_mask = 0x80 >> (bit_pos % 8);
+        //     history[byte_pos] |= bit_mask;
+        // };
+        auto put_bar = [&](uint8_t x, uint8_t y)
         {
-            const auto bit_pos = y * size_x + x;
-            const auto byte_pos = bit_pos / 8;
-            const auto bit_mask = 0x80 >> (bit_pos % 8);
-            history[byte_pos] |= bit_mask;
+            auto bit_pos = y * size_x + x;
+            constexpr auto bit_total = size_x * size_y;
+            while (bit_total > bit_pos)
+            {
+                const auto byte_pos = bit_pos / 8;
+                const auto bit_mask = 0x80 >> (bit_pos % 8);
+                history[byte_pos] |= bit_mask;
+                bit_pos += size_x;
+            }
         };
 
         for (auto i = 0; i < history_size; i++)
         {
             if (rotation_history[i])
             {
-                auto val_y = size_y - rotation_history[i] * (size_y - 1) / history_max;
-                while (val_y < size_y)
-                {
-                    put_pixel(i, val_y);
-                    val_y++;
-                }
+                const auto val_y = size_y - rotation_history[i] * (size_y - 1) / history_max;
+                put_bar(i, val_y);
             }
         }
 
@@ -75,10 +85,10 @@ void show_history()
 void show_data()
 {
     char buf[32];
-    const auto distance = rotation_count * rotation_length;
-    snprintf(buf, sizeof(buf), "rot=%u/%.1f", rotation_count, distance);
+    const auto total_length = rotation_length_mm * rotation_total / step_per_rotation / 1000 / 1000;
+    snprintf(buf, sizeof(buf), "tot=%.3f", total_length); // km
     ssd1306_display_text(&dev, 0, buf, strlen(buf), false);
-    snprintf(buf, sizeof(buf), "spd=%.3f/%.3f", speed, speed_max);
+    snprintf(buf, sizeof(buf), "kmh=%.3f/%.3f", speed, speed_max);
     ssd1306_display_text(&dev, 1, buf, strlen(buf), false);
 
     show_history();
@@ -116,16 +126,17 @@ static void on_sensor_button(button_t *, button_state_t state)
 {
     if (BUTTON_PRESSED == state)
     {
-        rotation_count++;
+        constexpr auto length_by_step = rotation_length_mm / step_per_rotation;
+        rotation_total++;
         rotation_history[0]++;
-        ESP_LOGI(TAG, "rotation_count=%d", rotation_count);
+        ESP_LOGI(TAG, "rotation_total=%d, rotation_history=%d ", rotation_total, *rotation_history);
         auto now = std::chrono::steady_clock::now();
         if (last_click.has_value())
         {
             const auto diff = now - last_click.value();
             const auto diff_ms = std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
             ESP_LOGI(TAG, "diff=%lld", diff_ms);
-            speed = rotation_length * 60 * 60 / diff_ms; // km/hour
+            speed = rotation_length_mm * 60 * 60 / diff_ms / 1000; // km/hour
             if (speed > speed_max)
             {
                 speed_max = speed;
