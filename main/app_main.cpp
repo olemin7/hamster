@@ -15,15 +15,19 @@
 using namespace std::chrono_literals;
 
 static const char *TAG = "main";
-constexpr auto diameter_mm = 200;
-constexpr auto rotation_length_mm = std::numbers::pi * diameter_mm;
-constexpr auto step_per_rotation = 2;
+constexpr auto RING_DIAMETER_MM = 200;
+constexpr auto RING_LENGTH_MM = std::numbers::pi * RING_DIAMETER_MM;
+constexpr auto STEP_PER_ROTATION = 2;
+constexpr auto STEP_LENGTH_MM = RING_LENGTH_MM / STEP_PER_ROTATION;
+constexpr auto MAX_SPEED_KMH = 10;
+constexpr auto MIN_STEP_DURATION_MS = static_cast<uint64_t>(STEP_LENGTH_MM * (60 * 60 * 1000) / (MAX_SPEED_KMH * 1000 * 1000));
 constexpr auto idle_duration = 60s;
 constexpr auto history_size = 128;
-// constexpr auto history_step = std::chrono::duration_cast<std::chrono::milliseconds>(25h) / history_size;
-constexpr auto history_step = 3s;
-uint32_t rotation_total = 0;
-uint32_t rotation_history[history_size] = {0};
+constexpr auto history_step = std::chrono::duration_cast<std::chrono::milliseconds>(25h) / history_size;
+constexpr auto step_to_km_koef = static_cast<float>(STEP_LENGTH_MM) / 1000 / 1000;
+// constexpr auto history_step = 3s;
+uint32_t steps_total = 0;
+uint32_t steps_history[history_size] = {0};
 double speed = 0;
 double speed_max = 0;
 
@@ -37,12 +41,13 @@ bool f_show_data = false;
 
 void show_history()
 {
-    const auto history_max = *std::max_element(rotation_history, rotation_history + history_size);
-    const auto history_total = std::accumulate(rotation_history, rotation_history + history_size, uint32_t{0});
+    const auto history_max = *std::max_element(steps_history, steps_history + history_size);
+    const auto history_total = std::accumulate(steps_history, steps_history + history_size, uint32_t{0});
     char buf[32];
     ESP_LOGI(TAG, "history_max=%f,history_total=%f", history_max, history_total);
-    snprintf(buf, sizeof(buf), "24h=%0.3f/%0.3f", static_cast<float>(rotation_length_mm * history_max) * step_per_rotation / 1000 / 1000,
-             static_cast<float>(rotation_length_mm * history_total) * step_per_rotation / 1000 / 1000);
+
+    snprintf(buf, sizeof(buf), "24h=%0.3f/%0.3f", step_to_km_koef * history_max,
+             step_to_km_koef * history_total);
     ssd1306_display_text(&dev, 2, buf, strlen(buf), false);
     if (history_max > 0)
     {
@@ -72,9 +77,9 @@ void show_history()
 
         for (auto i = 0; i < history_size; i++)
         {
-            if (rotation_history[i])
+            if (steps_history[i])
             {
-                const auto val_y = size_y - rotation_history[i] * (size_y - 1) / history_max;
+                const auto val_y = size_y - steps_history[i] * (size_y - 1) / history_max;
                 put_bar(i, val_y);
             }
         }
@@ -85,10 +90,10 @@ void show_history()
 void show_data()
 {
     char buf[32];
-    const auto total_length = rotation_length_mm * rotation_total / step_per_rotation / 1000 / 1000;
-    snprintf(buf, sizeof(buf), "tot=%.3f", total_length); // km
+    const auto total_length = step_to_km_koef * steps_total;
+    snprintf(buf, sizeof(buf), "tot =%.3f", total_length); // km
     ssd1306_display_text(&dev, 0, buf, strlen(buf), false);
-    snprintf(buf, sizeof(buf), "kmh=%.3f/%.3f", speed, speed_max);
+    snprintf(buf, sizeof(buf), "km/h=%.3f/%.3f", speed, speed_max);
     ssd1306_display_text(&dev, 1, buf, strlen(buf), false);
 
     show_history();
@@ -126,23 +131,30 @@ static void on_sensor_button(button_t *, button_state_t state)
 {
     if (BUTTON_PRESSED == state)
     {
-        constexpr auto length_by_step = rotation_length_mm / step_per_rotation;
-        rotation_total++;
-        rotation_history[0]++;
-        ESP_LOGI(TAG, "rotation_total=%d, rotation_history=%d ", rotation_total, *rotation_history);
+
         auto now = std::chrono::steady_clock::now();
         if (last_click.has_value())
         {
             const auto diff = now - last_click.value();
             const auto diff_ms = std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
             ESP_LOGI(TAG, "diff=%lld", diff_ms);
-            speed = rotation_length_mm * 60 * 60 / diff_ms / 1000; // km/hour
+            ESP_LOGI(TAG, " min=%" PRIu64, MIN_STEP_DURATION_MS);
+            if (MIN_STEP_DURATION_MS > diff_ms)
+            {
+                ESP_LOGI(TAG, "too fast, min=%d", MIN_STEP_DURATION_MS);
+                return;
+            }
+            speed = step_to_km_koef * 60 * 60 * 1000 / diff_ms; // km/hour
             if (speed > speed_max)
             {
                 speed_max = speed;
             }
         }
         last_click = now;
+
+        steps_total++;
+        steps_history[0]++;
+        ESP_LOGI(TAG, "steps_total=%d, steps_history=%d ", steps_total, *steps_history);
 
         if (f_show_data)
         {
@@ -180,10 +192,9 @@ void init()
     ssd1306_contrast(&dev, 0x0);
 
     history_tm = std::make_unique<idf::esp_timer::ESPTimer>([]()
-                                                            {
-                                    
-        memmove(rotation_history+1, rotation_history , sizeof(rotation_history) - sizeof(*rotation_history));
-        rotation_history[0]=0; 
+                                                            {                          
+        memmove(steps_history+1, steps_history , sizeof(steps_history) - sizeof(*steps_history));
+        steps_history[0]=0; 
         if(f_show_data){
             show_history();
         } });
