@@ -11,6 +11,7 @@
 #include "esp_timer_cxx.hpp"
 #include "ssd1306.h"
 #include "font8x8_basic.h"
+#include "esp_adc/adc_oneshot.h"
 
 using namespace std::chrono_literals;
 
@@ -44,7 +45,7 @@ void show_history()
     const auto history_max = *std::max_element(steps_history, steps_history + history_size);
     const auto history_total = std::accumulate(steps_history, steps_history + history_size, uint32_t{0});
     char buf[32];
-    ESP_LOGI(TAG, "history_max=%f,history_total=%f", history_max, history_total);
+    ESP_LOGI(TAG, "history_max=%u,history_total=%u", history_max, history_total);
 
     snprintf(buf, sizeof(buf), "24h=%0.3f/%0.3f", step_to_km_koef * history_max,
              step_to_km_koef * history_total);
@@ -90,13 +91,59 @@ void show_history()
 void show_data()
 {
     char buf[32];
+
     const auto total_length = step_to_km_koef * steps_total;
-    snprintf(buf, sizeof(buf), "tot =%.3f", total_length); // km
+    snprintf(buf, sizeof(buf), "tot=%.3f", total_length); // km
     ssd1306_display_text(&dev, 0, buf, strlen(buf), false);
-    snprintf(buf, sizeof(buf), "km/h=%.3f/%.3f", speed, speed_max);
+    snprintf(buf, sizeof(buf), "kmh=%.3f/%.3f", speed, speed_max);
     ssd1306_display_text(&dev, 1, buf, strlen(buf), false);
 
     show_history();
+}
+
+void show_service()
+{
+    char buf[32];
+    adc_oneshot_unit_handle_t adc_handle = nullptr;
+    do // adc
+    {
+        constexpr auto ADC_4_2 = 3489;
+        constexpr auto ADC_3_0 = 2557;
+        int adc_raw;
+        adc_oneshot_unit_init_cfg_t init_config1 = {
+            .unit_id = ADC_UNIT_1,
+        };
+
+        if (ESP_OK != adc_oneshot_new_unit(&init_config1, &adc_handle))
+        {
+            ESP_LOGE(TAG, "ADC adc_oneshot_new_unit failed");
+            break;
+        }
+        //-------------ADC1 Config---------------//
+        adc_oneshot_chan_cfg_t config = {
+            .atten = ADC_ATTEN_DB_12,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+        };
+        if (ESP_OK != adc_oneshot_config_channel(adc_handle, ADC_CHANNEL_2, &config))
+        {
+            ESP_LOGE(TAG, "ADC adc_oneshot_config_channel failed");
+            break;
+        }
+
+        if (ESP_OK != adc_oneshot_read(adc_handle, ADC_CHANNEL_2, &adc_raw))
+        {
+            ESP_LOGE(TAG, "ADC read failed");
+            break;
+        }
+        ESP_LOGI(TAG, "adc_raw=%d", adc_raw);
+        auto voltage = 3.0 + (adc_raw - ADC_3_0) * 1.2 / (ADC_4_2 - ADC_3_0);
+        snprintf(buf, sizeof(buf), "bat=%.2f", voltage); // km
+        ssd1306_display_text(&dev, 0, buf, strlen(buf), false);
+    } while (0);
+    if (adc_handle)
+    {
+        adc_oneshot_del_unit(adc_handle);
+    }
 }
 
 void restart_timeout()
@@ -116,11 +163,14 @@ static void on_wake_up_button(button_t *, button_state_t state)
     switch (state)
     {
     case BUTTON_PRESSED:
-        // WAKE UP
+        ssd1306_clear_screen(&dev, 0);
         restart_timeout();
         show_data();
         break;
     case BUTTON_PRESSED_LONG:
+        ssd1306_clear_screen(&dev, 0);
+        show_service();
+        restart_timeout();
         break;
     default: // NOTHING
         break;
@@ -132,13 +182,14 @@ static void on_sensor_button(button_t *, button_state_t state)
     if (BUTTON_PRESSED == state)
     {
 
-        auto now = std::chrono::steady_clock::now();
+        const auto now = std::chrono::steady_clock::now();
         if (last_click.has_value())
         {
             const auto diff = now - last_click.value();
             const auto diff_ms = std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
             ESP_LOGI(TAG, "diff=%lld", diff_ms);
-            ESP_LOGI(TAG, " min=%" PRIu64, MIN_STEP_DURATION_MS);
+            last_click = now;
+            // ESP_LOGI(TAG, " min=%" PRIu64, MIN_STEP_DURATION_MS);
             if (MIN_STEP_DURATION_MS > diff_ms)
             {
                 ESP_LOGI(TAG, "too fast, min=%d", MIN_STEP_DURATION_MS);
@@ -149,8 +200,12 @@ static void on_sensor_button(button_t *, button_state_t state)
             {
                 speed_max = speed;
             }
+            ESP_LOGI(TAG, "speed=%f, speed_max=%f", speed, speed_max);
         }
-        last_click = now;
+        else
+        {
+            last_click = now;
+        }
 
         steps_total++;
         steps_history[0]++;

@@ -11,7 +11,7 @@ https://github.com/espressif/esp-iot-solution
     Pin     | ADC | func |
 GPIO_NUM_0  | A0  |      | WAKE UP
 GPIO_NUM_1  | A1  |      | SENSOR
-GPIO_NUM_2  | A2  |      |
+GPIO_NUM_2  | A2  |      | BAT
 GPIO_NUM_3  | A3  |      |
 GPIO_NUM_4  | A4  | SCK  | 
 3V3
